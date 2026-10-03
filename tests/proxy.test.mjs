@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {proxyOwner} from '../src/proxy.js';
+let calls=0;
+const fake=async(url,opts)=>{calls++;assert.equal(new URL(url).host,'pay.ghzm.us');assert.equal(opts.headers.get('origin'),'https://owner.test');assert.equal(opts.headers.has('authorization'),false);return Response.json({success:true,data:{users:2}})};
+assert.equal((await proxyOwner(new Request('https://owner.test/api/owner/v1/overview'),undefined,fake)).status,503);
+assert.equal((await proxyOwner(new Request('https://owner.test/other'),'https://pay.ghzm.us',fake)).status,404);
+assert.equal((await proxyOwner(new Request('https://owner.test/api/owner/v1/auth/login',{method:'POST',headers:{origin:'https://evil.test'}}),'https://pay.ghzm.us',fake)).status,403);
+assert.equal(calls,0);
+const ok=await proxyOwner(new Request('https://owner.test/api/owner/v1/overview',{headers:{authorization:'secret'}}),'https://pay.ghzm.us',fake);assert.equal(ok.status,200);assert.equal((await ok.json()).data.users,2);assert.match(ok.headers.get('cache-control'),/no-store/);
+const html=await proxyOwner(new Request('https://owner.test/api/owner/v1/overview'),'https://pay.ghzm.us',async()=>new Response('<html>',{headers:{'content-type':'text/html'}}));assert.equal(html.status,502);assert.equal((await html.json()).error.code,'API_NOT_READY');
+const redirect=await proxyOwner(new Request('https://owner.test/api/owner/v1/overview'),'https://pay.ghzm.us',async()=>new Response(null,{status:302,headers:{location:'https://evil.test'}}));assert.equal(redirect.status,502);
+const denied=await proxyOwner(new Request('https://owner.test/api/owner/v1/overview'),'https://pay.ghzm.us',async()=>Response.json({success:false,error:{message:'login'}},{status:401}));assert.equal(denied.status,401);
+console.log('proxy regression: PASS');

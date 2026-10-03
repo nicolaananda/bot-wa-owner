@@ -1,36 +1,41 @@
 # bot-wa-owner
 
-Astro owner dashboard for the existing bot-wa backend.
+Astro dashboard for bot-wa. Integration release: owner login and read-only operational views. Not the complete admin panel; final QuizForge styling and mutating admin forms remain unfinished. Backend changes live in the separate bot-wa repository.
 
-## Status: work in progress
-
-This repository contains the current canonical frontend foundation, not a completed admin panel or production release. The final QuizForge styling, mutation forms, browser QA and secure same-origin API proxy are not complete. Backend changes live in the separate bot-wa repository and are not included here.
-
-Do not deploy with production owner credentials until authentication, CSRF/session renewal, API compatibility and proxy integration have passed end-to-end review. A successful build is not evidence of completed functionality.
-
-## Development
+## Build and tests
 
 ```sh
 npm ci
-npm run dev
+node tests/proxy.test.mjs
 npm run build
+npx wrangler@4.147.0 deploy --dry-run
 ```
 
-`npm run build` runs Astro diagnostics and emits static files to `dist/`.
+## Cloudflare Workers
 
-`.env.example` contains only a placeholder public API URL. Never place owner secrets, provider credentials or shared backend tokens in `PUBLIC_*` variables. The frontend defaults to `/api/owner/v1`; same-origin routing is not yet implemented in this repository.
+Deploy with the included `wrangler.jsonc`. The Worker runs before `/api/*` and proxies only `/api/owner/v1` to the configured upstream. Static frontend calls the same origin; no browser credentials or public backend token required.
 
-## Hosting targets
+Runtime Text variable:
 
-- Cloudflare Pages: build command `npm run build`, output directory `dist`.
-- Cloudflare Workers Static Assets: configuration provided in `wrangler.jsonc`.
+```
+OWNER_API_UPSTREAM=https://pay.ghzm.us
+```
 
-These settings cover static hosting only. They do not configure authentication, upstream API routing, CORS, deployment credentials or a custom domain. No deployment is performed by pushing this repository itself unless an external integration has separately been configured.
+The upstream is intentionally restricted to HTTPS `pay.ghzm.us`. Update the server-side allowlist and tests if the backend domain changes. Missing configuration returns 503 JSON, not a misleading HTML response.
 
-## Current limitations
+## Cloudflare Pages
 
-- Frontend primarily reads existing owner API summaries.
-- Several response shapes still need alignment with the evolving backend contract.
-- Product/stock and balance actions must remain unavailable until backend concurrency and idempotency issues are resolved.
-- Design does not yet match the requested QuizForge reference.
-- No production deployment, API restart or production-data mutation is part of this initial import.
+Build `npm run build`, output `dist`. The `functions/api/owner/v1/[[path]].js` Pages Function uses the same proxy. Deploy using Pages Git integration or Wrangler Pages Functions deployment, not an assets-only upload. Set the same server-side variable. Backend owner origin allowlist must include the exact Pages production origin.
+
+## Backend setup (JKT, not Cloudflare/public variables)
+
+- `OWNER_API_OWNERS`: explicit permitted owner identifiers.
+- `OWNER_API_SECRET`: private login password.
+- `OWNER_SESSION_SECRET`: separate random signing secret.
+- `OWNER_API_ORIGINS`: exact permitted dashboard origins.
+
+Keep credentials out of Git and group chats. Sessions use Secure HttpOnly cookies, CSRF checks and no-store responses. Login/logout are enabled; unverified business mutations are intentionally disabled server-side. The backend's unrelated legacy routes need a separate compatibility/security review.
+
+## Verification scope
+
+Build, proxy regression and isolated backend HTTP tests are required. Live login/logout and authenticated reads must be tested after deployment without changing balances, inventory, provider settings or transactions. A successful build alone is not a complete admin-panel acceptance test.
