@@ -17,4 +17,17 @@ assert.match(vm.runInContext('delta(12)',context),/\+12%/);
 assert.doesNotMatch(vm.runInContext('delta(null)',context),/NaN/);
 assert.ok(source.includes("$('detailContent').onclick=detailClick"));
 assert.ok(source.includes('<style is:global>'));
-console.log('dashboard date/comparison regression: PASS');
+for(const contract of [
+  '/users/${encodeURIComponent(id)}/ledger?page=${page}&limit=10',
+  '/zoom/${encodeURIComponent(tier)}/hosts',
+  '/zoom/${encodeURIComponent(tier)}/bookings',
+  'Ekspor ringkasan CSV',
+  'Detail order tidak tersedia pada kontrak API saat ini.',
+  'Pemeriksaan dinonaktifkan'
+]) assert.ok(source.includes(contract),`missing UI contract: ${contract}`);
+assert.doesNotMatch(source,/request\([^\n]*stock[^\n]*method:\s*['"](?:POST|PUT|PATCH|DELETE)/i);
+const csvStart=source.indexOf('function csvCell('),csvEnd=source.indexOf('function downloadCsv',csvStart);
+vm.runInContext(source.slice(csvStart,csvEnd),context);
+assert.equal(vm.runInContext("csvCell('=cmd')",context),'"\'=cmd"');
+assert.equal(vm.runInContext("csvCell('a\\\"b')",context),'"a""b"');
+console.log('dashboard capability/UI regression: PASS');
