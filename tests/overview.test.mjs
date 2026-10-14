@@ -1,0 +1,34 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+const source=fs.readFileSync(new URL('../src/pages/index.astro',import.meta.url),'utf8');
+const calls=[];
+const context=vm.createContext({jakartaDate:()=> '2026-10-15',request:async path=>{calls.push(path);return path==='/overview'?{users:7}:{kpis:{count:3},recentTransactions:[]}}});
+const start=source.indexOf('async function loadOverview(');
+assert.notEqual(start,-1,'overview must request today independently of filters');
+vm.runInContext(source.slice(start,source.indexOf('\nfunction overview',start)),context);
+const data=await vm.runInContext('loadOverview()',context);
+assert.deepEqual(calls.sort(),['/analytics?from=2026-10-15&to=2026-10-15','/overview'].sort());
+assert.equal(data.today.kpis.count,3);
+assert.equal(data.totals.users,7);
+assert.match(source,/load:\(\)=>select\('overview'\)/,'login always opens overview');
+assert.match(source,/<title>GH Dashboard/);
+// Exercise rendering with explicit test fixtures, never production records.
+vm.runInContext(source.slice(source.indexOf('const displayDate='),source.indexOf('async function request(')),context);
+vm.runInContext(source.slice(source.indexOf('function empty('),source.indexOf('function chart(')),context);
+vm.runInContext(source.slice(source.indexOf('function delta('),source.indexOf('\nconst displayDate=')),context);
+vm.runInContext(source.slice(source.indexOf('function overview('),source.indexOf('function render(')),context);
+const html=vm.runInContext("overview({day:'2026-10-15',today:{kpis:{count:0,recordedAmount:0},recentTransactions:[],statusGroups:[]},totals:{}})",context);
+assert.match(html,/Belum ada transaksi tercatat hari ini/);
+assert.match(html,/WIB · Asia\/Jakarta/);
+assert.doesNotMatch(html,/undefined|NaN/);
+assert.match(vm.runInContext("status('completed')",context),/chip ok/);
+assert.match(vm.runInContext("txRows([{refId:'<script>',product:'<img>',amount:10}])",context),/&lt;script&gt;/);
+context.request=async()=>{throw Object.assign(new Error('expired'),{status:401})};
+await assert.rejects(vm.runInContext('loadOverview()',context),error=>error.status===401);
+const dateSource=source.slice(source.indexOf('const jakartaDate='),source.indexOf('\nfunction setRange'));
+class FixedDate extends Date {static now(){return Date.parse('2026-10-14T17:05:00Z')}}
+const dateContext=vm.createContext({Date:FixedDate,Intl});
+vm.runInContext(dateSource,dateContext);
+assert.equal(vm.runInContext('jakartaDate()',dateContext),'2026-10-15');
+console.log('overview today/API/login/branding/empty/escaping/401/WIB regression: PASS');
