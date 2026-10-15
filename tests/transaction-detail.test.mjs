@@ -9,7 +9,7 @@ let section;global.document={createElement:()=>section=element()};
 const calls=[];let expired=false;
 const esc=s=>String(s??'').replaceAll('<','&lt;').replaceAll('>','&gt;');
 mountTransactionExtras({root:{append(){}},transaction:{refId:'TX/1',customerId:'user',delivery:{content:'<script>fixture</script>'}},request:async path=>{calls.push(path);return path.includes('/receipt')?{content:'<img>',source:'local'}:{items:[],pagination:{pages:2,total:11}}},esc,txRows:()=>'<table></table>',onExpired:()=>expired=true});
-await new Promise(r=>setImmediate(r));assert.ok(!section.innerHTML.includes('<script>'));assert.match(section.innerHTML,/&lt;script&gt;/);
+await new Promise(r=>setImmediate(r));assert.ok(!section.innerHTML.includes('<script>'));assert.match(section.innerHTML,/&lt;script&gt;/);assert.match(section.innerHTML,/account-panel/);assert.match(section.innerHTML,/<details open/);assert.ok(!section.innerHTML.includes('Akun yang dikirim'));
 await elements.get('[data-receipt]').onclick();assert.match(elements.get('[data-receipt-content]').innerHTML,/&lt;img&gt;/);assert.ok(calls.includes('/transactions/TX%2F1/receipt'));
 await elements.get('[data-next]').onclick();await new Promise(r=>setImmediate(r));assert.ok(calls.some(x=>x.includes('page=2')));
 mountTransactionExtras({root:{append(){}},transaction:{refId:'X'},request:async()=>{throw Object.assign(new Error('expired'),{status:401})},esc,txRows:()=>'',onExpired:()=>expired=true});await elements.get('[data-receipt]').onclick();assert.equal(expired,true);
